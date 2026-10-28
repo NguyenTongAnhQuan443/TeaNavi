@@ -729,21 +729,35 @@ void initBLE() {
   pTxCharacteristic->addDescriptor(new BLE2902());
 
   // Tạo Characteristic để nhận dữ liệu từ App (RX)
+  // PROPERTY_WRITE_NR bắt buộc để Flutter write(withoutResponse: true) hoạt động
   BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(
                                            CHARACTERISTIC_UUID_RX,
-                                           BLECharacteristic::PROPERTY_WRITE
+                                           BLECharacteristic::PROPERTY_WRITE |
+                                           BLECharacteristic::PROPERTY_WRITE_NR
                                          );
   pRxCharacteristic->setCallbacks(new MyCallbacks());
 
   // Khởi động Service và Advertising
   pService->start();
+  
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
+
+  // Đóng gói tên "TeaNavi_HUD" trực tiếp vào gói tin quảng bá
+  BLEAdvertisementData advData;
+  advData.setName("TeaNavi_HUD");
+  advData.setCompleteServices(BLEUUID(SERVICE_UUID));
+  pAdvertising->setAdvertisementData(advData);
+
+  BLEAdvertisementData scanData;
+  scanData.setName("TeaNavi_HUD");
+  pAdvertising->setScanResponseData(scanData);
+
   pAdvertising->setMinPreferred(0x06); // Dành cho kết nối iPhone ổn định
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
-  Serial.println(">> BLE Advertising ON! Dang cho iPhone ket noi voi 'TeaNavi_HUD'...");
+  Serial.println(">> BLE Advertising ON! Dang cho iPhone/Android ket noi voi 'TeaNavi_HUD'...");
 }
 
 void setup() {
