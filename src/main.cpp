@@ -9,21 +9,21 @@ TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprGauge = TFT_eSprite(&tft); // Sprite cho cụm tốc độ & gauge
 TFT_eSprite sprNav   = TFT_eSprite(&tft); // Sprite cho cụm điều hướng (icon, khoảng cách, thanh progress)
 
-// Định nghĩa màu sắc phong cách Cyberpunk / Sport HUD
-#define COLOR_BG          0x0821  // Tím than siêu tối gần đen #080811
-#define COLOR_CARD_BG     0x1084  // Thẻ tối #111422
-#define COLOR_CARD_BORDER 0x2187  // Viền mờ thẻ
-#define COLOR_CYAN            0x07FF  // Neon Cyan #00FFFF
-#define COLOR_TEAL            0x0517  // Dark Cyan/Teal
+// Định nghĩa màu sắc phong cách OLED Deep Black / Sport Supercar Cockpit
+#define COLOR_BG          0x0000  // Đen tuyền tuyệt đối (True Black) để tăng độ tương phản cực đại trên LCD
+#define COLOR_CARD_BG     0x0842  // Xám than titan tối cao cấp (Deep Titan Charcoal #101014)
+#define COLOR_CARD_BORDER 0x2125  // Viền sợi carbon / kim loại mờ tinh tế
+#define COLOR_CYAN            0x07FF  // Neon Cyan rực rỡ #00FFFF
+#define COLOR_TEAL            0x03B3  // Deep Teal
 #define COLOR_ORANGE          0xFD20  // Neon Orange #FFA500
 #define COLOR_AMBER           0xFDC0  // Amber Porsche #FFA000
 #define COLOR_ELECTRIC_YELLOW 0xFFE0  // Vàng điện Neon siêu sáng #FFFF00
-#define COLOR_TRACK_RING      0x1A73  // Xanh đêm ánh thép Deep Cyber Blue cho rãnh kim loại
+#define COLOR_TRACK_RING      0x10A2  // Rãnh kim loại nòng súng Gunmetal 3D
 #define COLOR_RED             0xF800  // Red cảnh báo #FF0000
 #define COLOR_GREEN           0x07E0  // Neon Green #00FF00
 #define COLOR_WHITE           0xFFFF  // White
-#define COLOR_GRAY            0x5AEB  // Neutral Gray
-#define COLOR_DARK_GRAY       0x2124  // Tối hơn
+#define COLOR_GRAY            0x632C  // Bạc ánh kim (Muted Silver)
+#define COLOR_DARK_GRAY       0x2104  // Xám thép tối (Dark Steel)
 
 #define TOP_BAR_H 24
 
@@ -46,120 +46,213 @@ enum NavDirection {
 };
 
 // ==========================================
-// VẼ ĐẦY ĐỦ 12 BIỂU TƯỢNG ĐIỀU HƯỚNG BẰNG VECTOR
+// VẼ ICON ĐIỀU HƯỚNG BẰNG VECTOR HÌNH HỌC CHUẨN XÁC TUYỆT ĐỐI
 // ==========================================
 void drawNavIcon(TFT_eSprite &spr, int cx, int cy, NavDirection dir, uint16_t color, int exitNum = 1) {
   switch (dir) {
     case NAV_STRAIGHT:
-      // Đi thẳng: Mũi tên thẳng đứng
-      spr.fillRoundRect(cx - 5, cy - 8, 10, 36, 3, color);
-      spr.fillTriangle(cx, cy - 28, cx - 22, cy - 6, cx + 22, cy - 6, color);
+      // Đi thẳng: Thon gọn, cao ráo
+      spr.fillRoundRect(cx - 4, cy - 8, 8, 38, 2, color);
+      spr.fillTriangle(cx, cy - 28, cx - 18, cy - 8, cx + 18, cy - 8, color);
       break;
 
-    case NAV_SLIGHT_RIGHT:
-      // Chếch phải: Thân nghiêng 45 độ
-      spr.fillRoundRect(cx - 10, cy + 8, 10, 20, 3, color);
-      spr.fillRoundRect(cx - 4, cy - 4, 18, 10, 3, color);
-      // Đầu mũi tên nghiêng hướng 2 giờ
-      spr.fillTriangle(cx + 22, cy - 22, cx + 6, cy - 26, cx + 26, cy - 6, color);
-      spr.drawLine(cx - 2, cy + 10, cx + 16, cy - 8, color);
-      spr.drawLine(cx - 3, cy + 10, cx + 15, cy - 8, color);
-      spr.drawLine(cx - 4, cy + 10, cx + 14, cy - 8, color);
+    case NAV_SLIGHT_RIGHT: {
+      // Chếch phải 45 độ: Thân thon 8px, dài cao thanh thoát
+      spr.fillRect(cx - 9, cy + 6, 8, 20, color);
+      for (int offset = 0; offset <= 7; offset++) {
+        spr.drawLine(cx - 9 + offset, cy + 6, cx + 13 + offset, cy - 16, color);
+      }
+      spr.fillTriangle(cx + 26, cy - 22, cx + 8, cy - 22, cx + 26, cy - 4, color);
       break;
+    }
+
+    case NAV_SLIGHT_LEFT: {
+      // Chếch trái 45 độ: Thân thon 8px
+      spr.fillRect(cx + 1, cy + 6, 8, 20, color);
+      for (int offset = 0; offset <= 7; offset++) {
+        spr.drawLine(cx + 9 - offset, cy + 6, cx - 13 - offset, cy - 16, color);
+      }
+      spr.fillTriangle(cx - 26, cy - 22, cx - 8, cy - 22, cx - 26, cy - 4, color);
+      break;
+    }
 
     case NAV_TURN_RIGHT:
-      // Rẽ phải 90 độ
-      spr.fillRoundRect(cx - 18, cy + 2, 10, 26, 3, color);
-      spr.fillRoundRect(cx - 18, cy - 4, 30, 10, 3, color);
-      spr.fillTriangle(cx + 26, cy + 1, cx + 10, cy - 16, cx + 10, cy + 18, color);
-      break;
-
-    case NAV_SHARP_RIGHT:
-      // Rẽ gắt phải (quay ngoặt về sau bên phải)
-      spr.fillRoundRect(cx - 14, cy - 18, 10, 34, 3, color);
-      spr.fillRoundRect(cx - 14, cy - 24, 26, 10, 3, color);
-      spr.fillRoundRect(cx + 2, cy - 18, 10, 22, 3, color);
-      spr.fillTriangle(cx + 7, cy + 16, cx - 4, cy + 2, cx + 18, cy + 2, color);
-      break;
-
-    case NAV_SLIGHT_LEFT:
-      // Chếch trái: Thân nghiêng hướng 10 giờ
-      spr.fillRoundRect(cx, cy + 8, 10, 20, 3, color);
-      spr.fillRoundRect(cx - 14, cy - 4, 18, 10, 3, color);
-      spr.fillTriangle(cx - 22, cy - 22, cx - 6, cy - 26, cx - 26, cy - 6, color);
-      spr.drawLine(cx + 2, cy + 10, cx - 16, cy - 8, color);
-      spr.drawLine(cx + 3, cy + 10, cx - 15, cy - 8, color);
-      spr.drawLine(cx + 4, cy + 10, cx - 14, cy - 8, color);
+      // Rẽ phải 90 độ: Thon gọn 8px, thân cao ráo thanh thoát
+      // Thân đứng cao 38px, dày 8px
+      spr.fillRoundRect(cx - 15, cy - 12, 8, 38, 2, color);
+      // Nhánh ngang sang phải: dày 8px, dài 28px
+      spr.fillRoundRect(cx - 15, cy - 12, 28, 8, 2, color);
+      // Đầu mũi tên thanh mảnh sắc nhọn
+      spr.fillTriangle(cx + 26, cy - 8, cx + 11, cy - 21, cx + 11, cy + 5, color);
       break;
 
     case NAV_TURN_LEFT:
-      // Rẽ trái 90 độ
-      spr.fillRoundRect(cx + 8, cy + 2, 10, 26, 3, color);
-      spr.fillRoundRect(cx - 12, cy - 4, 30, 10, 3, color);
-      spr.fillTriangle(cx - 26, cy + 1, cx - 10, cy - 16, cx - 10, cy + 18, color);
+      // Rẽ trái 90 độ: Thon gọn 8px, thân cao ráo
+      spr.fillRoundRect(cx + 7, cy - 12, 8, 38, 2, color);
+      spr.fillRoundRect(cx - 13, cy - 12, 28, 8, 2, color);
+      spr.fillTriangle(cx - 26, cy - 8, cx - 11, cy - 21, cx - 11, cy + 5, color);
       break;
 
-    case NAV_SHARP_LEFT:
-      // Rẽ gắt trái (quay ngoặt về sau bên trái)
-      spr.fillRoundRect(cx + 4, cy - 18, 10, 34, 3, color);
-      spr.fillRoundRect(cx - 12, cy - 24, 26, 10, 3, color);
-      spr.fillRoundRect(cx - 12, cy - 18, 10, 22, 3, color);
-      spr.fillTriangle(cx - 7, cy + 16, cx - 18, cy + 2, cx + 4, cy + 2, color);
-      break;
-
-    case NAV_UTURN_LEFT:
-      // Quay đầu xe bên trái (chuẩn Việt Nam)
-      spr.drawWideLine(cx - 14, cy + 24, cx - 14, cy - 2, 8, color, COLOR_CARD_BG);
-      spr.drawWideLine(cx + 12, cy + 24, cx + 12, cy - 2, 8, color, COLOR_CARD_BG);
-      spr.drawCircle(cx - 1, cy - 2, 15, color);
-      spr.drawCircle(cx - 1, cy - 2, 14, color);
-      spr.drawCircle(cx - 1, cy - 2, 13, color);
-      spr.fillRect(cx - 18, cy - 1, 36, 15, COLOR_CARD_BG);
-      spr.fillTriangle(cx - 14, cy + 26, cx - 24, cy + 12, cx - 4, cy + 12, color);
-      break;
-
-    case NAV_UTURN_RIGHT:
-      // Quay đầu xe bên phải
-      spr.drawWideLine(cx - 12, cy + 24, cx - 12, cy - 2, 8, color, COLOR_CARD_BG);
-      spr.drawWideLine(cx + 14, cy + 24, cx + 14, cy - 2, 8, color, COLOR_CARD_BG);
-      spr.drawCircle(cx + 1, cy - 2, 15, color);
-      spr.drawCircle(cx + 1, cy - 2, 14, color);
-      spr.drawCircle(cx + 1, cy - 2, 13, color);
-      spr.fillRect(cx - 18, cy - 1, 36, 15, COLOR_CARD_BG);
-      spr.fillTriangle(cx + 14, cy + 26, cx + 4, cy + 12, cx + 24, cy + 12, color);
-      break;
-
-    case NAV_FORK_RAMP:
-      // Tách làn / Lối vào đường nhánh cao tốc
-      spr.fillRoundRect(cx - 4, cy + 6, 8, 22, 2, color);
-      spr.drawLine(cx, cy + 8, cx - 18, cy - 12, color);
-      spr.drawLine(cx, cy + 8, cx + 18, cy - 12, color);
-      // Mũi tên chính rẽ nhánh phải
-      spr.fillTriangle(cx + 22, cy - 18, cx + 8, cy - 16, cx + 20, cy - 4, color);
-      // Đường phụ mờ hơn bên trái
-      spr.drawFastVLine(cx - 18, cy - 20, 10, COLOR_GRAY);
-      break;
-
-    case NAV_ROUNDABOUT:
-      // Vòng xuyến kèm số lối ra
-      spr.drawCircle(cx, cy - 2, 21, color);
-      spr.drawCircle(cx, cy - 2, 20, color);
-      spr.drawCircle(cx, cy - 2, 19, color);
-      // Đường vào
-      spr.fillRoundRect(cx - 4, cy + 14, 8, 14, 2, color);
-      // Mũi tên thoát theo số lối ra
-      if (exitNum == 1) { // Thoát góc 3h
-        spr.fillTriangle(cx + 25, cy - 2, cx + 15, cy - 10, cx + 15, cy + 6, color);
-      } else if (exitNum == 2) { // Thoát thẳng góc 12h
-        spr.fillTriangle(cx, cy - 26, cx - 8, cy - 16, cx + 8, cy - 16, color);
-      } else { // Thoát góc 9h
-        spr.fillTriangle(cx - 25, cy - 2, cx - 15, cy - 10, cx - 15, cy + 6, color);
+    case NAV_SHARP_RIGHT: {
+      // 3: Rẽ gắt phải / Cua tay áo (Hairpin Right ~135 độ, khác biệt hoàn toàn với U-Turn)
+      // Thân đi thẳng lên từ dưới bên trái
+      spr.fillRoundRect(cx - 14, cy - 14, 8, 40, 2, color);
+      // Khúc gập cua gắt nhọn hướng chếch góc 5 giờ
+      for (int i = 0; i <= 7; i++) {
+        spr.drawLine(cx - 10 + i, cy - 14, cx + 12 + i, cy + 10, color);
       }
-      // Số lối ra ở giữa vòng tròn
-      spr.setTextDatum(MC_DATUM);
-      spr.setTextColor(COLOR_WHITE, COLOR_CARD_BG);
-      spr.drawString(String(exitNum), cx, cy - 2, 4);
+      // Mũi tên nhọn hướng chếch chéo xuống góc 4h30 - 5h
+      spr.fillTriangle(cx + 20, cy + 20, cx + 6, cy + 10, cx + 22, cy + 4, color);
       break;
+    }
+
+    case NAV_SHARP_LEFT: {
+      // 6: Rẽ gắt trái / Cua tay áo (Hairpin Left ~135 độ)
+      // Thân đi thẳng lên từ dưới bên phải
+      spr.fillRoundRect(cx + 6, cy - 14, 8, 40, 2, color);
+      // Khúc gập cua gắt nhọn hướng chếch góc 7 giờ
+      for (int i = 0; i <= 7; i++) {
+        spr.drawLine(cx + 10 - i, cy - 14, cx - 12 - i, cy + 10, color);
+      }
+      // Mũi tên nhọn hướng chếch chéo xuống góc 7h - 7h30
+      spr.fillTriangle(cx - 20, cy + 20, cx - 6, cy + 10, cx - 22, cy + 4, color);
+      break;
+    }
+
+    case NAV_UTURN_LEFT: {
+      // 7: Quay đầu xe bên trái (Chuẩn CarPlay / Google Maps)
+      // Tâm vòm uốn cong:
+      int archX = cx - 2;
+      int archY = cy - 6;
+
+      // 1. Vẽ vòm cung nửa trên hoàn mỹ
+      spr.fillCircle(archX, archY, 15, color);
+      spr.fillCircle(archX, archY, 7, COLOR_CARD_BG);
+      // Xoá sạch nửa dưới của vòm (chỉ trong phạm vi giữa 2 nhánh, không chạm vào thân nhánh)
+      spr.fillRect(archX - 6, archY, 13, 20, COLOR_CARD_BG);
+
+      // 2. Nhánh phải đi lên (từ dưới vươn thẳng nối mượt khít vào vòm phải)
+      spr.fillRect(archX + 7, archY, 8, 28, color);
+
+      // 3. Nhánh trái đi xuống (nối mượt khít từ vòm trái xuống mũi tên)
+      spr.fillRect(archX - 15, archY, 8, 18, color);
+
+      // 4. Mũi tên nhọn chỉ thẳng xuống 6 giờ
+      spr.fillTriangle(archX - 11, archY + 28, archX - 21, archY + 16, archX - 1, archY + 16, color);
+      break;
+    }
+
+    case NAV_UTURN_RIGHT: {
+      // 8: Quay đầu xe bên phải (Đối xứng tuyệt đối với U-Turn Left)
+      int archX = cx + 2;
+      int archY = cy - 6;
+
+      // 1. Vẽ vòm cung nửa trên hoàn mỹ
+      spr.fillCircle(archX, archY, 15, color);
+      spr.fillCircle(archX, archY, 7, COLOR_CARD_BG);
+      // Xoá sạch nửa dưới của vòm (chỉ trong phạm vi giữa 2 nhánh)
+      spr.fillRect(archX - 6, archY, 13, 20, COLOR_CARD_BG);
+
+      // 2. Nhánh trái đi lên (vươn thẳng nối khít vào vòm trái)
+      spr.fillRect(archX - 15, archY, 8, 28, color);
+
+      // 3. Nhánh phải đi xuống (nối khít từ vòm phải xuống mũi tên)
+      spr.fillRect(archX + 7, archY, 8, 18, color);
+
+      // 4. Mũi tên nhọn chỉ thẳng xuống 6 giờ
+      spr.fillTriangle(archX + 11, archY + 28, archX + 1, archY + 16, archX + 21, archY + 16, color);
+      break;
+    }
+
+    case NAV_FORK_RAMP: {
+      // 9: Nhánh cao tốc / Tách làn (Thon mượt 8px)
+      // Thân chính thẳng
+      spr.fillRoundRect(cx - 10, cy - 8, 8, 38, 2, color);
+      spr.fillTriangle(cx - 6, cy - 26, cx - 18, cy - 8, cx + 6, cy - 8, color);
+      // Nhánh phụ tách sang phải
+      for (int offset = 0; offset <= 6; offset++) {
+        spr.drawLine(cx - 8 + offset, cy + 10, cx + 14 + offset, cy - 10, color);
+      }
+      spr.fillTriangle(cx + 26, cy - 14, cx + 10, cy - 14, cx + 24, cy + 2, color);
+      break;
+    }
+
+    case NAV_ROUNDABOUT: {
+      // 10: Vòng xuyến / Bùng binh cao cấp chuẩn Apple CarPlay & Google Maps
+      int rcx = cx;
+      int rcy = cy - 2;
+      int rTrack = 20;
+
+      // 1. Đường ray bùng binh (Đường nét mờ Graphite tinh tế định hình vòng xuyến)
+      spr.drawCircle(rcx, rcy, rTrack, 0x2965);
+      spr.drawCircle(rcx, rcy, rTrack - 1, 0x18E3);
+      spr.drawCircle(rcx, rcy, rTrack + 1, 0x18E3);
+
+      // Các nhánh đường phụ mờ xung quanh (biểu thị các lối rẽ khác)
+      spr.fillRect(rcx - 2, rcy + rTrack - 1, 4, 12, 0x2965); // Lối vào dưới
+      spr.fillRect(rcx + rTrack - 1, rcy - 2, 10, 4, 0x2965); // Nhánh phụ 3h
+      spr.fillRect(rcx - 2, rcy - rTrack - 9, 4, 10, 0x2965); // Nhánh phụ 12h
+      spr.fillRect(rcx - rTrack - 9, rcy - 2, 10, 4, 0x2965); // Nhánh phụ 9h
+
+      // 2. Quỹ đạo xe di chuyển thực tế (Active Trajectory - Màu Cyan sáng sắc nét)
+      // Đường xe vào từ phía dưới
+      spr.fillRoundRect(rcx - 3, rcy + 10, 6, 20, 2, color);
+
+      // Cung đường ôm cua bùng binh (Dày 6px sáng bóng)
+      if (exitNum == 1) {
+        // Lối ra 1 (3h): Ôm 1/4 cung tròn từ góc 6h lên 3h
+        for (int r = rTrack - 3; r <= rTrack + 3; r++) {
+          for (int deg = 0; deg <= 90; deg += 3) {
+            float rad = deg * 0.0174533;
+            int px = rcx + (int)(r * sin(rad));
+            int py = rcy + (int)(r * cos(rad));
+            spr.drawPixel(px, py, color);
+          }
+        }
+        // Nhánh thoát rẽ phải 3h vươn dài thanh thoát ra ngoài
+        spr.fillRect(rcx + 10, rcy - 3, 16, 6, color);
+        // Mũi tên nhọn vươn xa ở đầu nhánh (đỉnh x = rcx + 36)
+        spr.fillTriangle(rcx + 36, rcy, rcx + 24, rcy - 8, rcx + 24, rcy + 8, color);
+      } 
+      else if (exitNum == 2) {
+        // Lối ra 2 (12h - đi thẳng qua bùng binh): Chạy nửa vòng cung bên phải từ 6h lên 12h
+        for (int r = rTrack - 3; r <= rTrack + 3; r++) {
+          for (int deg = 0; deg <= 180; deg += 3) {
+            float rad = deg * 0.0174533;
+            int px = rcx + (int)(r * sin(rad));
+            int py = rcy + (int)(r * cos(rad));
+            spr.drawPixel(px, py, color);
+          }
+        }
+        // Nhánh thoát vươn cao lên trên (dài 18px vượt xa khỏi vành bùng binh)
+        spr.fillRect(rcx - 3, rcy - 30, 6, 16, color);
+        // Mũi tên nhọn vươn cao thanh thoát (đỉnh y = rcy - 36)
+        spr.fillTriangle(rcx, rcy - 36, rcx - 9, rcy - 24, rcx + 9, rcy - 24, color);
+      } 
+      else {
+        // Lối ra 3 (9h - ôm 3/4 vòng xuyến từ 6h -> 3h -> 12h -> 9h)
+        for (int r = rTrack - 3; r <= rTrack + 3; r++) {
+          for (int deg = 0; deg <= 270; deg += 3) {
+            float rad = deg * 0.0174533;
+            int px = rcx + (int)(r * sin(rad));
+            int py = rcy + (int)(r * cos(rad));
+            spr.drawPixel(px, py, color);
+          }
+        }
+        // Nhánh thoát rẽ trái 9h vươn dài ra ngoài
+        spr.fillRect(rcx - 26, rcy - 3, 16, 6, color);
+        // Mũi tên nhọn vươn xa (đỉnh x = rcx - 36)
+        spr.fillTriangle(rcx - 36, rcy, rcx - 24, rcy - 8, rcx - 24, rcy + 8, color);
+      }
+
+      // 3. Huy hiệu tâm hiện đại: Vòng tròn tối giản với số lối ra tương phản cao
+      spr.fillCircle(rcx, rcy, 9, COLOR_CARD_BG);
+      spr.drawCircle(rcx, rcy, 9, 0x3186); // Viền titan thanh lịch
+      spr.setTextDatum(MC_DATUM);
+      spr.setTextColor(COLOR_ELECTRIC_YELLOW, COLOR_CARD_BG);
+      spr.drawString(String(exitNum), rcx, rcy, 2);
+      break;
+    }
 
     case NAV_DESTINATION:
       // Đã đến điểm đích: Biểu tượng Marker / Cờ đích
@@ -285,66 +378,81 @@ void drawTopBar(String timeStr, bool btConnected, float fps = 30.0) {
 }
 
 // ==========================================
+// ==========================================
 // RENDER CỤM ĐIỀU HƯỚNG BÊN TRÁI (SPRITE)
+// Phong cách: Porsche GT / Cyber Cyan
 // ==========================================
 void updateNavDisplay(NavDirection dir, int distance, String streetName, int roundaboutExit = 1) {
   sprNav.fillSprite(COLOR_BG);
 
-  // Thẻ Card nền bo góc viền tinh tế
+  // Thẻ Card nền bo góc viền kép tinh xảo phong cách Cockpit
   sprNav.fillRoundRect(0, 0, 148, 206, 8, COLOR_CARD_BG);
   sprNav.drawRoundRect(0, 0, 148, 206, 8, COLOR_CARD_BORDER);
 
-  // 1. Biểu tượng điều hướng Vector
+  // 1. BIỂU TƯỢNG ĐIỀU HƯỚNG (Màu Neon Cyan viền kép thể thao)
+  // Vẽ lớp hào quang bóng mờ viền sâu (Teal glow)
   drawNavIcon(sprNav, 74, 46, dir, COLOR_CYAN, roundaboutExit);
 
-  // 2. Khoảng cách (VD: 250m) hoặc "DEN NOI"
+  // 2. KHOẢNG CÁCH (SỐ MÀU TRẮNG LỚN NỔI BẬT & DỄ ĐỌC KHI ĐANG LÁI XE)
   sprNav.setTextDatum(MC_DATUM);
   if (dir == NAV_DESTINATION) {
     sprNav.setTextColor(COLOR_GREEN, COLOR_CARD_BG);
     sprNav.drawString("DEN NOI", 74, 98, 4);
   } else {
+    // Số khoảng cách màu TRẮNG tinh khiết, font 4 to và cực kỳ rõ ràng
     sprNav.setTextColor(COLOR_WHITE, COLOR_CARD_BG);
     if (distance >= 1000) {
       float km = distance / 1000.0;
-      sprNav.drawString(String(km, 1) + "km", 74, 98, 4);
+      sprNav.drawString(String(km, 1) + " km", 74, 98, 4);
     } else {
-      sprNav.drawString(String(distance) + "m", 74, 98, 4);
+      sprNav.drawString(String(distance) + " m", 74, 98, 4);
     }
   }
 
-  // 3. Thanh tiến trình khoảng cách (Distance Progress Bar)
-  int barW = 120;
-  int barH = 6;
-  int barX = 14;
-  int barY = 122;
-  sprNav.fillRoundRect(barX, barY, barW, barH, 3, COLOR_DARK_GRAY);
-  
+  // 3. THANH TIẾN TRÌNH PHÂN ĐOẠN THỂ THAO (Segmented Tech Bar 10 vạch)
+  int numSegments = 10;
+  int segW = 10;
+  int segH = 5;
+  int segGap = 3;
+  int startBarX = (148 - (numSegments * segW + (numSegments - 1) * segGap)) / 2;
+  int barY = 120;
+
+  int maxDist = 500;
+  int activeSegments = 0;
   if (dir != NAV_DESTINATION) {
-    int maxDist = 500;
-    int fillW = map(constrain(distance, 0, maxDist), 0, maxDist, barW, 0);
-    if (fillW > 0) {
-      uint16_t pCol = (distance < 80) ? COLOR_ORANGE : COLOR_CYAN;
-      sprNav.fillRoundRect(barX, barY, fillW, barH, 3, pCol);
-    }
+    float prog = 1.0 - constrain((float)distance / maxDist, 0.0, 1.0);
+    activeSegments = round(prog * numSegments);
   } else {
-    sprNav.fillRoundRect(barX, barY, barW, barH, 3, COLOR_GREEN);
+    activeSegments = numSegments;
   }
 
-  // 4. Đường kẻ phân cách
-  sprNav.drawFastHLine(10, 140, 128, COLOR_CARD_BORDER);
+  for (int s = 0; s < numSegments; s++) {
+    int sx = startBarX + s * (segW + segGap);
+    if (s < activeSegments) {
+      uint16_t segCol = (distance < 80) ? COLOR_ORANGE : COLOR_CYAN;
+      if (dir == NAV_DESTINATION) segCol = COLOR_GREEN;
+      sprNav.fillRoundRect(sx, barY, segW, segH, 1, segCol);
+    } else {
+      sprNav.fillRoundRect(sx, barY, segW, segH, 1, COLOR_DARK_GRAY);
+    }
+  }
 
-  // 5. Tên đường tiếp theo / ghi chú vòng xuyến
+  // 4. ĐƯỜNG KẺ KIM LOẠI PHÂN VÙNG
+  sprNav.drawFastHLine(14, 138, 120, COLOR_CARD_BORDER);
+
+  // 5. NHÃN CHỈ HƯỚNG & TÊN ĐƯỜNG TIẾP THEO
   sprNav.setTextDatum(MC_DATUM);
   sprNav.setTextColor(COLOR_GRAY, COLOR_CARD_BG);
   if (dir == NAV_ROUNDABOUT) {
-    sprNav.drawString("LOI RA THU " + String(roundaboutExit), 74, 155, 1);
+    sprNav.drawString("LOI RA THU " + String(roundaboutExit), 74, 154, 1);
   } else if (dir == NAV_DESTINATION) {
-    sprNav.drawString("DIEM DEN CUA BAN", 74, 155, 1);
+    sprNav.drawString("DIEM DEN CUA BAN", 74, 154, 1);
   } else {
-    sprNav.drawString("TIEP THEO VAO", 74, 155, 1);
+    sprNav.drawString("TIEP THEO VAO", 74, 154, 1);
   }
 
-  sprNav.setTextColor(COLOR_ORANGE, COLOR_CARD_BG);
+  // Tên đường: Màu Vàng Amber thể thao nổi bật sắc nét
+  sprNav.setTextColor(COLOR_AMBER, COLOR_CARD_BG);
   sprNav.drawString(streetName, 74, 178, 2);
 
   // Đẩy Sprite lên màn hình TFT (tại vị trí x=6, y=28)
@@ -518,63 +626,133 @@ void setup() {
 
   // Vẽ thanh Top Bar ban đầu
   drawTopBar("09:45", true, 30.0);
+
+  // In danh mục lệnh ra Serial Console để người dùng nhập test
+  Serial.println("\n=======================================================");
+  Serial.println("  TEANAVI - BAN PHIM DIEU KHIEN HUD TEST ENUM");
+  Serial.println("=======================================================");
+  Serial.println("Nhap so (0 - 11) de hien thi tung truong hop dieu huong:");
+  Serial.println("  0 : NAV_STRAIGHT     (Di thang)");
+  Serial.println("  1 : NAV_SLIGHT_RIGHT (Chech phai 45 deg)");
+  Serial.println("  2 : NAV_TURN_RIGHT   (Re phai 90 deg)");
+  Serial.println("  3 : NAV_SHARP_RIGHT  (Re gat phai >120 deg)");
+  Serial.println("  4 : NAV_SLIGHT_LEFT  (Chech trai 45 deg)");
+  Serial.println("  5 : NAV_TURN_LEFT    (Re trai 90 deg)");
+  Serial.println("  6 : NAV_SHARP_LEFT   (Re gat trai >120 deg)");
+  Serial.println("  7 : NAV_UTURN_LEFT   (Quay dau ben trai)");
+  Serial.println("  8 : NAV_UTURN_RIGHT  (Quay dau ben phai)");
+  Serial.println("  9 : NAV_FORK_RAMP    (Tach lan cao toc)");
+  Serial.println("  10: NAV_ROUNDABOUT   (Vong xuyen / Bung binh)");
+  Serial.println("  11: NAV_DESTINATION  (Diem den cua ban)");
+  Serial.println("-------------------------------------------------------");
+  Serial.println("Lenh khac:");
+  Serial.println("  'a' hoac 'auto'  : Chuyen sang che do tu dong chay demo");
+  Serial.println("  's <toc_do>'     : Chinh toc do (VD: 's 85')");
+  Serial.println("  'l <gioi_han>'   : Chinh limit (VD: 'l 60')");
+  Serial.println("  'b'              : Bat / Tat ket noi Bluetooth (Toggle BLE)");
+  Serial.println("=======================================================\n");
 }
 
-// Cấu trúc mô phỏng kịch bản chạy thử nghiệm
-struct DemoStep {
-  NavDirection dir;
-  int distance;
-  const char* street;
-  int speed;
-  int limit;
-  int exitNum;
-  int durationMs;
+// Danh sách tên đường mô phỏng cho từng case
+const char* navNames[] = {
+  "DUONG GIAI PHONG",
+  "NHANH LEN CAO TOC",
+  "PHO HUE",
+  "NGO 124 NGACH 5",
+  "DUONG VEN HO",
+  "TRAN HUNG DAO",
+  "NGO NHO",
+  "QUAY DAU DIEM MO",
+  "QUAY DAU PHAI",
+  "NHAP LAN VANH DAI 3",
+  "VONG XUYEN O CHO DUA",
+  "TOA NHA HOME"
 };
 
-// 12 trường hợp giao thông diễn ra thực tế trên lộ trình
-DemoStep routeDemo[] = {
-  {NAV_STRAIGHT,     400, "DUONG GIAI PHONG",  48, 60, 0, 2000},
-  {NAV_SLIGHT_RIGHT, 250, "NHANH LEN CAO TOC", 55, 60, 0, 2000},
-  {NAV_TURN_RIGHT,   120, "PHO HUE",           42, 50, 0, 2000},
-  {NAV_SHARP_RIGHT,  80,  "NGO 124 NGACH 5",   22, 40, 0, 2000},
-  {NAV_SLIGHT_LEFT,  300, "DUONG VEN HO",      38, 50, 0, 2000},
-  {NAV_TURN_LEFT,    150, "TRAN HUNG DAO",     45, 50, 0, 2000},
-  {NAV_SHARP_LEFT,   70,  "NGO NHO",           20, 30, 0, 2000},
-  {NAV_UTURN_LEFT,   100, "QUAY DAU DIEM MO",  25, 40, 0, 2500},
-  {NAV_UTURN_RIGHT,  90,  "QUAY DAU PHAI",     24, 40, 0, 2500},
-  {NAV_FORK_RAMP,    320, "NHAP LAN VAIH 3",   65, 80, 0, 2000},
-  {NAV_ROUNDABOUT,   180, "NGA 6 O CHO DUA",   35, 50, 2, 2500}, // Lối ra 2
-  {NAV_ROUNDABOUT,   90,  "VONG XUYEN KHUAT D",30, 50, 3, 2500}, // Lối ra 3
-  {NAV_STRAIGHT,     60,  "DUONG TO HIEN",     72, 60, 0, 2000}, // Thử quá tốc độ (72 > 60) -> Cảnh báo đỏ
-  {NAV_DESTINATION,  0,   "TOA NHA HOME",       0, 50, 0, 3000}
-};
+bool autoMode = false; // Mặc định ở chế độ chỉnh bằng tay qua Console
+int currentNav = 0;
+int currentDist = 250;
+int currentSpeed = 48;
+int currentLimit = 60;
+int currentExit = 2;
+bool currentBle = true;
 
-int totalSteps = sizeof(routeDemo) / sizeof(routeDemo[0]);
+int autoStep = 0;
+unsigned long lastAutoTime = 0;
 unsigned long lastFrameTime = 0;
 
-void loop() {
-  for (int i = 0; i < totalSteps; i++) {
-    DemoStep step = routeDemo[i];
+void handleSerialCommand() {
+  if (!Serial.available()) return;
 
-    // Tính FPS thực tế giữa các khung hình
-    float fps = 30.0;
-    if (lastFrameTime > 0) {
-      unsigned long frameDelta = millis() - lastFrameTime;
-      if (frameDelta > 0) {
-        fps = 1000.0 / (float)frameDelta;
-      }
-    }
-    lastFrameTime = millis();
+  String cmd = Serial.readStringUntil('\n');
+  cmd.trim();
+  if (cmd.length() == 0) return;
 
-    // Cập nhật TopBar với TeaNavi, BLE, RAM và FPS (đã lược bỏ GPS)
-    drawTopBar("09:45", true, fps);
-
-    // Vẽ điều hướng
-    updateNavDisplay(step.dir, step.distance, step.street, step.exitNum);
-
-    // Vẽ đồng hồ tốc độ và biển báo giới hạn thể thao
-    updateSpeedGauge(step.speed, step.limit);
-
-    delay(step.durationMs);
+  if (cmd.equalsIgnoreCase("a") || cmd.equalsIgnoreCase("auto")) {
+    autoMode = !autoMode;
+    Serial.println(autoMode ? ">> CHE DO: TU DONG CHAY DEMO (AUTO)" : ">> CHE DO: THU CONG (MANUAL - Nhap 0-11)");
+    return;
   }
+
+  if (cmd.equalsIgnoreCase("b")) {
+    currentBle = !currentBle;
+    Serial.println(currentBle ? ">> BLE: CONNECTED (ON)" : ">> BLE: DISCONNECTED (OFF)");
+    return;
+  }
+
+  if (cmd.startsWith("s ") || cmd.startsWith("S ")) {
+    currentSpeed = cmd.substring(2).toInt();
+    Serial.printf(">> SET TOC DO: %d km/h\n", currentSpeed);
+    return;
+  }
+
+  if (cmd.startsWith("l ") || cmd.startsWith("L ")) {
+    currentLimit = cmd.substring(2).toInt();
+    Serial.printf(">> SET GIOI HAN (LIMIT): %d km/h\n", currentLimit);
+    return;
+  }
+
+  // Nếu là số 0 -> 11
+  int val = cmd.toInt();
+  if (val >= 0 && val <= 11) {
+    autoMode = false;
+    currentNav = val;
+    Serial.printf(">> Chon Nav [%d]: %s\n", currentNav, navNames[currentNav]);
+  } else {
+    Serial.println(">> Lenh khong hop le! Hay nhap so tu 0 den 11.");
+  }
+}
+
+void loop() {
+  handleSerialCommand();
+
+  unsigned long now = millis();
+
+  // Tính FPS thực tế
+  float fps = 30.0;
+  if (lastFrameTime > 0) {
+    unsigned long delta = now - lastFrameTime;
+    if (delta > 0) fps = 1000.0 / (float)delta;
+  }
+  lastFrameTime = now;
+
+  if (autoMode) {
+    // Chế độ tự động chuyển mỗi 2 giây
+    if (now - lastAutoTime > 2000) {
+      lastAutoTime = now;
+      autoStep = (autoStep + 1) % 12;
+      currentNav = autoStep;
+    }
+  }
+
+  // Cập nhật TopBar (Brand, BLE, RAM, FPS)
+  drawTopBar("09:45", currentBle, fps);
+
+  // Cập nhật cụm Điều hướng (Icon Vector, Khoảng cách, Tên đường)
+  updateNavDisplay((NavDirection)currentNav, currentDist, navNames[currentNav], currentExit);
+
+  // Cập nhật cụm Đồng hồ tốc độ & Biển báo giới hạn
+  updateSpeedGauge(currentSpeed, currentLimit);
+
+  delay(60); // Tần số quét 15-20 FPS mượt mà và nhận lệnh Serial nhạy
 }
