@@ -2,6 +2,15 @@
 #include <TFT_eSPI.h>
 #include <SPI.h>
 #include <math.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+
+// UUID chuẩn Nordic UART Service (Tương thích 100% mọi app iOS/Android)
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
 TFT_eSPI tft = TFT_eSPI();
 
@@ -602,59 +611,9 @@ void updateSpeedGauge(int speed, int limit) {
   sprGauge.pushSprite(160, 28);
 }
 
-void setup() {
-  Serial.begin(115200);
-
-  // Bật đèn nền LCD chân 21
-  pinMode(21, OUTPUT);
-  digitalWrite(21, HIGH);
-
-  tft.init();
-  tft.invertDisplay(true); // Đảo ngược màu cho màn hình mạch vàng (ST7789 / ILI9341 inverted)
-  tft.setRotation(1);      // Màn hình ngang 320x240
-  tft.fillScreen(COLOR_BG);
-
-  // Khởi tạo bộ đệm Sprite trong RAM
-  sprTopBar.setColorDepth(16);
-  sprTopBar.createSprite(320, TOP_BAR_H);
-
-  sprNav.setColorDepth(16);
-  sprNav.createSprite(148, 206);
-
-  sprGauge.setColorDepth(16);
-  sprGauge.createSprite(154, 206);
-
-  // Vẽ thanh Top Bar ban đầu
-  drawTopBar("09:45", true, 30.0);
-
-  // In danh mục lệnh ra Serial Console để người dùng nhập test
-  Serial.println("\n=======================================================");
-  Serial.println("  TEANAVI - BAN PHIM DIEU KHIEN HUD TEST ENUM");
-  Serial.println("=======================================================");
-  Serial.println("Nhap so (0 - 11) de hien thi tung truong hop dieu huong:");
-  Serial.println("  0 : NAV_STRAIGHT     (Di thang)");
-  Serial.println("  1 : NAV_SLIGHT_RIGHT (Chech phai 45 deg)");
-  Serial.println("  2 : NAV_TURN_RIGHT   (Re phai 90 deg)");
-  Serial.println("  3 : NAV_SHARP_RIGHT  (Re gat phai >120 deg)");
-  Serial.println("  4 : NAV_SLIGHT_LEFT  (Chech trai 45 deg)");
-  Serial.println("  5 : NAV_TURN_LEFT    (Re trai 90 deg)");
-  Serial.println("  6 : NAV_SHARP_LEFT   (Re gat trai >120 deg)");
-  Serial.println("  7 : NAV_UTURN_LEFT   (Quay dau ben trai)");
-  Serial.println("  8 : NAV_UTURN_RIGHT  (Quay dau ben phai)");
-  Serial.println("  9 : NAV_FORK_RAMP    (Tach lan cao toc)");
-  Serial.println("  10: NAV_ROUNDABOUT   (Vong xuyen / Bung binh)");
-  Serial.println("  11: NAV_DESTINATION  (Diem den cua ban)");
-  Serial.println("-------------------------------------------------------");
-  Serial.println("Lenh khac:");
-  Serial.println("  'a' hoac 'auto'  : Chuyen sang che do tu dong chay demo");
-  Serial.println("  's <toc_do>'     : Chinh toc do (VD: 's 85')");
-  Serial.println("  'l <gioi_han>'   : Chinh limit (VD: 'l 60')");
-  Serial.println("  'b'              : Bat / Tat ket noi Bluetooth (Toggle BLE)");
-  Serial.println("=======================================================\n");
-}
-
 // Danh sách tên đường mô phỏng cho từng case
-const char* navNames[] = {
+String currentStreet = "DUONG GIAI PHONG";
+const char* defaultNavNames[] = {
   "DUONG GIAI PHONG",
   "NHANH LEN CAO TOC",
   "PHO HUE",
@@ -675,7 +634,184 @@ int currentDist = 250;
 int currentSpeed = 48;
 int currentLimit = 60;
 int currentExit = 2;
-bool currentBle = true;
+bool currentBle = false; // Mặc định ban đầu chưa có điện thoại kết nối
+
+BLEServer *pServer = NULL;
+BLECharacteristic *pTxCharacteristic = NULL;
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+
+// ========================================================
+// BLE SERVER CALLBACKS (XỬ LÝ KẾT NỐI / NGẮT KẾT NỐI TỪ IPHONE)
+// ========================================================
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      currentBle = true;
+      Serial.println("\n>> [BLE] IPHONE / FLUTTER APP DA KET NOI THANH CONG! <<\n");
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      currentBle = false;
+      Serial.println("\n>> [BLE] IPHONE DA NGAT KET NOI. DANG QUANG BA LAI... <<\n");
+      pServer->startAdvertising();
+    }
+};
+
+// ========================================================
+// BLE RX CALLBACK (NHẬN GÓI TIN DẪN ĐƯỜNG TỪ FLUTTER APP)
+// Định dạng gói tin: "DIR,DIST,SPEED,LIMIT,EXIT,STREET_NAME"
+// Ví dụ: "2,250,48,60,1,Le Loi"
+// ========================================================
+class MyCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      String msg = pCharacteristic->getValue();
+      if (msg.length() > 0) {
+        msg.trim();
+        Serial.print(">> [BLE RECV]: ");
+        Serial.println(msg);
+
+        // Phân tích cú pháp chuỗi phân cách bởi dấu phẩy
+        int idx1 = msg.indexOf(',');
+        if (idx1 != -1) {
+          int idx2 = msg.indexOf(',', idx1 + 1);
+          int idx3 = (idx2 != -1) ? msg.indexOf(',', idx2 + 1) : -1;
+          int idx4 = (idx3 != -1) ? msg.indexOf(',', idx3 + 1) : -1;
+          int idx5 = (idx4 != -1) ? msg.indexOf(',', idx4 + 1) : -1;
+
+          // 1. Direction (0 - 11)
+          currentNav = msg.substring(0, idx1).toInt();
+          
+          // 2. Distance (m)
+          if (idx2 != -1) {
+            currentDist = msg.substring(idx1 + 1, idx2).toInt();
+            // 3. Speed (km/h)
+            if (idx3 != -1) {
+              currentSpeed = msg.substring(idx2 + 1, idx3).toInt();
+              // 4. Speed Limit
+              if (idx4 != -1) {
+                currentLimit = msg.substring(idx3 + 1, idx4).toInt();
+                // 5. Exit Number (cho bùng binh)
+                if (idx5 != -1) {
+                  currentExit = msg.substring(idx4 + 1, idx5).toInt();
+                  currentStreet = msg.substring(idx5 + 1);
+                } else {
+                  currentStreet = msg.substring(idx4 + 1);
+                }
+              } else {
+                currentStreet = msg.substring(idx3 + 1);
+              }
+            } else {
+              currentStreet = msg.substring(idx2 + 1);
+            }
+          }
+          autoMode = false;
+        }
+      }
+    }
+};
+
+void initBLE() {
+  Serial.println(">> Khoi tao BLE Server: TeaNavi_HUD...");
+  BLEDevice::init("TeaNavi_HUD");
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  // Tạo dịch vụ Nordic UART Service
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  // Tạo Characteristic để gửi dữ liệu về App (TX)
+  pTxCharacteristic = pService->createCharacteristic(
+                        CHARACTERISTIC_UUID_TX,
+                        BLECharacteristic::PROPERTY_NOTIFY
+                      );
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  // Tạo Characteristic để nhận dữ liệu từ App (RX)
+  BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(
+                                           CHARACTERISTIC_UUID_RX,
+                                           BLECharacteristic::PROPERTY_WRITE
+                                         );
+  pRxCharacteristic->setCallbacks(new MyCallbacks());
+
+  // Khởi động Service và Advertising
+  pService->start();
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06); // Dành cho kết nối iPhone ổn định
+  pAdvertising->setMinPreferred(0x12);
+  BLEDevice::startAdvertising();
+  Serial.println(">> BLE Advertising ON! Dang cho iPhone ket noi voi 'TeaNavi_HUD'...");
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(200); // Đợi ổn định nguồn khi cắm dây nạp
+
+  // Bật đèn nền LCD chân 21
+  pinMode(21, OUTPUT);
+  digitalWrite(21, HIGH);
+
+  // Khởi động Bluetooth BLE Server trước khi cấp phát bộ nhớ đồ họa
+  initBLE();
+
+  tft.init();
+  tft.invertDisplay(true); // Đảo ngược màu cho màn hình mạch vàng (ST7789 / ILI9341 inverted)
+  tft.setRotation(1);      // Màn hình ngang 320x240
+  tft.fillScreen(COLOR_BG);
+
+  // Khởi tạo bộ đệm Sprite trong RAM
+  sprTopBar.setColorDepth(16);
+  sprTopBar.createSprite(320, TOP_BAR_H);
+
+  sprNav.setColorDepth(16);
+  void* navPtr = sprNav.createSprite(148, 206);
+  if (!navPtr) {
+    Serial.println(">> [CANH BAO] Khong du RAM cho sprNav! Chuyen sang color depth 8-bit...");
+    sprNav.setColorDepth(8);
+    sprNav.createSprite(148, 206);
+  }
+
+  sprGauge.setColorDepth(16);
+  void* gaugePtr = sprGauge.createSprite(154, 206);
+  if (!gaugePtr) {
+    Serial.println(">> [CANH BAO] Khong du RAM cho sprGauge! Chuyen sang color depth 8-bit...");
+    sprGauge.setColorDepth(8);
+    sprGauge.createSprite(154, 206);
+  }
+
+  Serial.printf(">> [RAM Con lai sau khi tao Sprites]: %d bytes\n", ESP.getFreeHeap());
+
+  // Vẽ thanh Top Bar ban đầu
+  drawTopBar("09:45", false, 30.0);
+
+  // In danh mục lệnh ra Serial Console để người dùng nhập test
+  Serial.println("\n=======================================================");
+  Serial.println("  TEANAVI - BAN PHIM DIEU KHIEN HUD & BLE READY");
+  Serial.println("=======================================================");
+  Serial.println("Nhap so (0 - 11) de hien thi tung truong hop dieu huong:");
+  Serial.println("  0 : NAV_STRAIGHT     (Di thang)");
+  Serial.println("  1 : NAV_SLIGHT_RIGHT (Chech phai 45 deg)");
+  Serial.println("  2 : NAV_TURN_RIGHT   (Re phai 90 deg)");
+  Serial.println("  3 : NAV_SHARP_RIGHT  (Re gat phai >120 deg)");
+  Serial.println("  4 : NAV_SLIGHT_LEFT  (Chech trai 45 deg)");
+  Serial.println("  5 : NAV_TURN_LEFT    (Re trai 90 deg)");
+  Serial.println("  6 : NAV_SHARP_LEFT   (Re gat trai >120 deg)");
+  Serial.println("  7 : NAV_UTURN_LEFT   (Quay dau ben trai)");
+  Serial.println("  8 : NAV_UTURN_RIGHT  (Quay dau ben phai)");
+  Serial.println("  9 : NAV_FORK_RAMP    (Tach lan cao toc)");
+  Serial.println("  10: NAV_ROUNDABOUT   (Vong xuyen / Bung binh)");
+  Serial.println("  11: NAV_DESTINATION  (Diem den cua ban)");
+  Serial.println("-------------------------------------------------------");
+  Serial.println("Lenh khac:");
+  Serial.println("  'a' hoac 'auto'  : Chuyen sang che do tu dong chay demo");
+  Serial.println("  's <toc_do>'     : Chinh toc do (VD: 's 85')");
+  Serial.println("  'l <gioi_han>'   : Chinh limit (VD: 'l 60')");
+  Serial.println("  'b'              : Bat / Tat gia lap BLE (Toggle BLE)");
+  Serial.println("=======================================================\n");
+}
 
 int autoStep = 0;
 unsigned long lastAutoTime = 0;
@@ -717,7 +853,8 @@ void handleSerialCommand() {
   if (val >= 0 && val <= 11) {
     autoMode = false;
     currentNav = val;
-    Serial.printf(">> Chon Nav [%d]: %s\n", currentNav, navNames[currentNav]);
+    currentStreet = defaultNavNames[currentNav];
+    Serial.printf(">> Chon Nav [%d]: %s\n", currentNav, currentStreet.c_str());
   } else {
     Serial.println(">> Lenh khong hop le! Hay nhap so tu 0 den 11.");
   }
@@ -742,17 +879,18 @@ void loop() {
       lastAutoTime = now;
       autoStep = (autoStep + 1) % 12;
       currentNav = autoStep;
+      currentStreet = defaultNavNames[currentNav];
     }
   }
 
   // Cập nhật TopBar (Brand, BLE, RAM, FPS)
   drawTopBar("09:45", currentBle, fps);
 
-  // Cập nhật cụm Điều hướng (Icon Vector, Khoảng cách, Tên đường)
-  updateNavDisplay((NavDirection)currentNav, currentDist, navNames[currentNav], currentExit);
+  // Cập nhật cụm Điều hướng (Icon Vector, Khoảng cách, Tên đường thời gian thực từ BLE/Demo)
+  updateNavDisplay((NavDirection)currentNav, currentDist, currentStreet.c_str(), currentExit);
 
   // Cập nhật cụm Đồng hồ tốc độ & Biển báo giới hạn
   updateSpeedGauge(currentSpeed, currentLimit);
 
-  delay(60); // Tần số quét 15-20 FPS mượt mà và nhận lệnh Serial nhạy
+  delay(50); // Tần số quét 20 FPS mượt mà
 }
