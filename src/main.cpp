@@ -170,37 +170,118 @@ void drawNavIcon(TFT_eSprite &spr, int cx, int cy, NavDirection dir, uint16_t co
   }
 }
 
+// Sprite chuyên dụng cho Top Bar chống nháy
+TFT_eSprite sprTopBar = TFT_eSprite(&tft);
+
+// ==========================================
+// VẼ ICON BLUETOOTH DẠNG BADGE HUY HIỆU
+// Hiển thị trực quan: Connected (Xanh Neon phát sáng) vs Disconnected (Mờ / Gạch chéo báo ngắt)
+// ==========================================
+void drawBleIcon(TFT_eSprite &spr, int cx, int cy, bool connected) {
+  int w = 18;
+  int h = 18;
+  int bx = cx - w / 2;
+  int by = cy - h / 2;
+
+  if (connected) {
+    // Huy hiệu nền xanh đêm với viền Cyan rực rỡ
+    spr.fillRoundRect(bx, by, w, h, 4, 0x01E8); // Deep Dark Cyan
+    spr.drawRoundRect(bx, by, w, h, 4, COLOR_CYAN);
+
+    // Ký hiệu Bluetooth chuẩn dày dặn sắc nét (Trắng / Cyan)
+    spr.drawFastVLine(cx - 1, cy - 6, 13, COLOR_WHITE);
+    spr.drawFastVLine(cx,     cy - 6, 13, COLOR_WHITE);
+
+    // Cánh bướm bên phải
+    spr.drawLine(cx, cy, cx + 4, cy - 4, COLOR_CYAN);
+    spr.drawLine(cx + 4, cy - 4, cx, cy - 7, COLOR_CYAN);
+    spr.drawLine(cx, cy, cx + 4, cy + 4, COLOR_CYAN);
+    spr.drawLine(cx + 4, cy + 4, cx, cy + 7, COLOR_CYAN);
+
+    // Râu bên trái
+    spr.drawLine(cx - 1, cy - 4, cx - 4, cy - 1, COLOR_CYAN);
+    spr.drawLine(cx - 1, cy + 4, cx - 4, cy + 1, COLOR_CYAN);
+
+    // Chấm đèn tín hiệu online (Active Dot) góc trên
+    spr.fillCircle(bx + w - 2, by + 2, 2, COLOR_GREEN);
+  } else {
+    // Trạng thái ngắt kết nối: Thẻ mờ xám tối, có gạch đỏ cảnh báo
+    spr.fillRoundRect(bx, by, w, h, 4, COLOR_CARD_BG);
+    spr.drawRoundRect(bx, by, w, h, 4, COLOR_DARK_GRAY);
+
+    // Icon Bluetooth xám tối mờ
+    spr.drawFastVLine(cx, cy - 5, 11, COLOR_DARK_GRAY);
+    spr.drawLine(cx, cy, cx + 3, cy - 3, COLOR_DARK_GRAY);
+    spr.drawLine(cx + 3, cy - 3, cx, cy - 5, COLOR_DARK_GRAY);
+    spr.drawLine(cx, cy, cx + 3, cy + 3, COLOR_DARK_GRAY);
+    spr.drawLine(cx + 3, cy + 3, cx, cy + 5, COLOR_DARK_GRAY);
+
+    // Đường gạch chéo đỏ báo hiệu Disconnected không kết nối
+    spr.drawLine(bx + 3, by + 3, bx + w - 4, by + h - 4, COLOR_RED);
+    spr.drawLine(bx + 4, by + 3, bx + w - 3, by + h - 4, COLOR_RED);
+  }
+}
+
 // ==========================================
 // VẼ THANH TRẠNG THÁI TRÊN CÙNG (TOP BAR)
+// Hiển thị: Brand TeaNavi, BLE Badge, Đồng hồ, RAM (Used/Total), FPS
 // ==========================================
-void drawTopBar(String timeStr, bool btConnected, bool gpsLocked) {
-  tft.fillRect(0, 0, 320, TOP_BAR_H, COLOR_BG);
-  tft.drawFastHLine(0, TOP_BAR_H - 1, 320, COLOR_CARD_BORDER);
+void drawTopBar(String timeStr, bool btConnected, float fps = 30.0) {
+  sprTopBar.fillSprite(COLOR_BG);
 
-  // 1. Icon & Chữ Bluetooth
-  tft.setTextDatum(ML_DATUM);
+  // Đường viền dưới kim loại mờ
+  sprTopBar.drawFastHLine(0, TOP_BAR_H - 1, 320, COLOR_CARD_BORDER);
+
+  // 1. BRAND BADGE: [TeaNavi] góc trái cực ngầu
+  sprTopBar.fillRoundRect(6, 3, 62, 18, 3, COLOR_CARD_BG);
+  sprTopBar.drawRoundRect(6, 3, 62, 18, 3, COLOR_TEAL);
+  sprTopBar.setTextDatum(MC_DATUM);
+  sprTopBar.setTextColor(COLOR_CYAN, COLOR_CARD_BG);
+  sprTopBar.drawString("TeaNavi", 37, 12, 2);
+
+  // 2. BLUETOOTH STATUS & BADGE ICON (Cực kỳ trực quan)
+  int bleCx = 84;
+  int bleCy = 12;
+  drawBleIcon(sprTopBar, bleCx, bleCy, btConnected);
+
+  sprTopBar.setTextDatum(ML_DATUM);
   if (btConnected) {
-    tft.setTextColor(COLOR_CYAN, COLOR_BG);
-    tft.drawString("BLE CONNECTED", 10, TOP_BAR_H / 2, 2);
+    sprTopBar.setTextColor(COLOR_CYAN, COLOR_BG);
+    sprTopBar.drawString("ON", bleCx + 13, 12, 1);
   } else {
-    tft.setTextColor(COLOR_GRAY, COLOR_BG);
-    tft.drawString("BLE SEARCHING...", 10, TOP_BAR_H / 2, 2);
+    sprTopBar.setTextColor(COLOR_GRAY, COLOR_BG);
+    sprTopBar.drawString("OFF", bleCx + 13, 12, 1);
   }
 
-  // 2. Đồng hồ giờ ở giữa
-  tft.setTextColor(COLOR_WHITE, COLOR_BG);
-  tft.setTextDatum(MC_DATUM);
-  tft.drawString(timeStr, 160, TOP_BAR_H / 2, 2);
+  // 3. ĐỒNG HỒ THỜI GIAN TRUNG TÂM (Digital Clock)
+  sprTopBar.setTextDatum(MC_DATUM);
+  sprTopBar.setTextColor(COLOR_WHITE, COLOR_BG);
+  sprTopBar.drawString(timeStr, 150, 12, 2);
 
-  // 3. Trạng thái GPS bên phải
-  tft.setTextDatum(MR_DATUM);
-  if (gpsLocked) {
-    tft.setTextColor(COLOR_GREEN, COLOR_BG);
-    tft.drawString("GPS 3D FIX", 310, TOP_BAR_H / 2, 2);
-  } else {
-    tft.setTextColor(COLOR_ORANGE, COLOR_BG);
-    tft.drawString("GPS ACQUIRING", 310, TOP_BAR_H / 2, 2);
-  }
+  // 4. THÔNG TIN HỆ THỐNG GÓC PHẢI: RAM (Còn lại/Tổng) & FPS
+  // ESP32 tổng Heap khoảng 320KB
+  uint32_t freeHeapKb = ESP.getFreeHeap() / 1024;
+  uint32_t totalHeapKb = ESP.getHeapSize() / 1024; // Thường là ~320K hoặc có PSRAM
+  if (totalHeapKb == 0) totalHeapKb = 320; // Phòng trường hợp API trả về 0
+
+  // Dòng trên: RAM Free / Total (VD: 298K/320K)
+  sprTopBar.setTextDatum(MR_DATUM);
+  sprTopBar.setTextColor(COLOR_GRAY, COLOR_BG);
+  sprTopBar.drawString("RAM", 258, 7, 1);
+
+  sprTopBar.setTextColor(COLOR_ELECTRIC_YELLOW, COLOR_BG);
+  sprTopBar.drawString(String(freeHeapKb) + "K", 289, 7, 1);
+  sprTopBar.setTextColor(COLOR_GRAY, COLOR_BG);
+  sprTopBar.drawString("/" + String(totalHeapKb) + "K", 316, 7, 1);
+
+  // Dòng dưới: FPS đo thực tế
+  sprTopBar.setTextColor(COLOR_GRAY, COLOR_BG);
+  sprTopBar.drawString("FPS", 258, 17, 1);
+  sprTopBar.setTextColor(COLOR_GREEN, COLOR_BG);
+  sprTopBar.drawString(String((int)fps) + " fps", 316, 17, 1);
+
+  // Đẩy Sprite TopBar lên màn hình TFT (x=0, y=0)
+  sprTopBar.pushSprite(0, 0);
 }
 
 // ==========================================
@@ -271,70 +352,98 @@ void updateNavDisplay(NavDirection dir, int distance, String streetName, int rou
 }
 
 // ==========================================
+// ==========================================
 // RENDER CỤM TỐC ĐỘ SPORT ARC GAUGE (SPRITE)
+// Phong cách: Cyber Racing Cockpit (Tối giản & Trọng tâm)
 // ==========================================
 void updateSpeedGauge(int speed, int limit) {
   sprGauge.fillSprite(COLOR_BG);
 
-  // Thẻ Card nền bên phải
+  // 1. Thẻ Card nền bên phải - Thêm viền cảnh báo khi vượt tốc độ
   sprGauge.fillRoundRect(0, 0, 154, 206, 8, COLOR_CARD_BG);
-  sprGauge.drawRoundRect(0, 0, 154, 206, 8, COLOR_CARD_BORDER);
+  if (speed > limit) {
+    // Chớp viền cảnh báo màu đỏ/vàng thể thao khi quá tốc độ
+    sprGauge.drawRoundRect(0, 0, 154, 206, 8, COLOR_RED);
+    sprGauge.drawRoundRect(1, 1, 152, 204, 7, COLOR_ELECTRIC_YELLOW);
+  } else {
+    sprGauge.drawRoundRect(0, 0, 154, 206, 8, COLOR_CARD_BORDER);
+  }
 
   int gcx = 77;
-  int gcy = 92;
-  int radius = 62;
+  int gcy = 82;
+  int radius = 64;
 
-  float startAngle = 140.0;
-  float endAngle = 400.0;
+  float startAngle = 135.0; // Bắt đầu góc 135 độ (hướng 7h30)
+  float endAngle = 405.0;   // Kết thúc góc 405 độ (hướng 4h30) - cung 270 độ thể thao
   float totalSpan = endAngle - startAngle;
   float rad = 0.0174532925; // PI / 180
 
-  // 1. Vẽ rãnh vòng cung nền (Track Ring) tạo cảm giác mặt đồng hồ 3D kim loại
-  int rOuter = radius + 2;
-  int rInner = radius - 11;
+  // 2. Rãnh vòng cung kim loại đôi (Dual Track Ring)
+  int rOuter = radius + 3;
+  int rInner = radius - 13;
   for (float aDeg = startAngle; aDeg <= endAngle; aDeg += 2.0) {
     float a = aDeg * rad;
     float cosA = cos(a);
     float sinA = sin(a);
     sprGauge.drawPixel(gcx + (rOuter * cosA), gcy + (rOuter * sinA), COLOR_TRACK_RING);
+    sprGauge.drawPixel(gcx + ((rOuter - 1) * cosA), gcy + ((rOuter - 1) * sinA), COLOR_DARK_GRAY);
     sprGauge.drawPixel(gcx + (rInner * cosA), gcy + (rInner * sinA), COLOR_TRACK_RING);
   }
 
-  // 2. Vẽ các vạch chia cung (Tick Marks)
-  int numTicks = 24;
+  // 3. Hệ vạch chia cung 28 nấc (Thước đo tốc độ công tơ mét)
+  int numTicks = 28;
   float angleStep = totalSpan / (numTicks - 1);
   float curSpeedRatio = (float)constrain(speed, 0, 140) / 140.0;
   int activeTicks = round(curSpeedRatio * numTicks);
+  float limitRatio = (float)constrain(limit, 0, 140) / 140.0;
+  int limitTick = round(limitRatio * numTicks);
 
   for (int i = 0; i < numTicks; i++) {
     float a = (startAngle + i * angleStep) * rad;
     float cosA = cos(a);
     float sinA = sin(a);
 
+    // Điểm vạch chính (Major tick) mỗi 4 nấc (0, 20, 40, 60, 80, 100, 120, 140)
+    bool isMajor = (i % 4 == 0);
+    int tickLength = isMajor ? 12 : 8;
+
     int xOuter = gcx + (radius * cosA);
     int yOuter = gcy + (radius * sinA);
-    int xInner = gcx + ((radius - 9) * cosA);
-    int yInner = gcy + ((radius - 9) * sinA);
+    int xInner = gcx + ((radius - tickLength) * cosA);
+    int yInner = gcy + ((radius - tickLength) * sinA);
 
-    // Vạch khi chưa kích hoạt: Xanh đêm ánh kim loại (thay vì xám tối thô)
-    uint16_t tickColor = COLOR_TRACK_RING;
+    // Màu vạch tĩnh mặc định
+    uint16_t tickColor = isMajor ? COLOR_GRAY : COLOR_DARK_GRAY;
 
+    // Đánh dấu mốc giới hạn tốc độ (Speed Limit Marker)
+    if (i == limitTick) {
+      tickColor = COLOR_RED;
+    }
+
+    // Đổi màu vạch động theo mức tốc độ hiện tại
     if (i < activeTicks) {
       if (speed > limit) {
-        // Vượt tốc độ: Vàng điện chớp sáng xen kẽ Cam thể thao
-        tickColor = (i % 2 == 0) ? COLOR_ELECTRIC_YELLOW : COLOR_ORANGE;
-      } else if (i > numTicks * 0.72) {
-        tickColor = COLOR_ELECTRIC_YELLOW; // Vạch tốc độ cao
+        // Quá tốc độ: Pha màu Đỏ rực & Vàng điện chớp sáng
+        tickColor = (i >= limitTick) ? COLOR_RED : COLOR_ELECTRIC_YELLOW;
+      } else if (i > numTicks * 0.70) {
+        // Tốc độ cao (>100km/h): Vàng điện rực
+        tickColor = COLOR_ELECTRIC_YELLOW;
+      } else if (i > numTicks * 0.45) {
+        // Tốc độ vừa (60-100km/h): Cam Porsche
+        tickColor = COLOR_AMBER;
       } else {
-        tickColor = COLOR_CYAN; // Vạch tốc độ bình thường Cyan rực rỡ
+        // Tốc độ tiêu chuẩn (0-60km/h): Neon Cyan thể thao
+        tickColor = COLOR_CYAN;
       }
     }
 
     sprGauge.drawLine(xInner, yInner, xOuter, yOuter, tickColor);
-    sprGauge.drawLine(xInner + 1, yInner, xOuter + 1, yOuter, tickColor);
+    if (isMajor || i < activeTicks) {
+      sprGauge.drawLine(xInner + 1, yInner, xOuter + 1, yOuter, tickColor);
+    }
   }
 
-  // 3. Số tốc độ lớn ở giữa: Dùng màu Vàng Điện Electric Yellow siêu sáng khi vượt tốc
+  // 4. Số đo tốc độ lớn ở tâm (Font 7 7-Segment sắc nét)
   sprGauge.setTextDatum(MC_DATUM);
   if (speed > limit) {
     sprGauge.setTextColor(COLOR_ELECTRIC_YELLOW, COLOR_CARD_BG);
@@ -343,22 +452,43 @@ void updateSpeedGauge(int speed, int limit) {
   }
   sprGauge.drawString(String(speed), gcx, gcy - 2, 7);
 
-  // 3. Đơn vị KM/H
-  sprGauge.setTextColor(COLOR_CYAN, COLOR_CARD_BG);
-  sprGauge.drawString("KM/H", gcx, gcy + 34, 2);
-
-  // 4. Biển báo tốc độ giới hạn
-  int signX = 77;
-  int signY = 168;
-  int signR = 19;
-  sprGauge.fillCircle(signX, signY, signR, COLOR_WHITE);
-  sprGauge.drawCircle(signX, signY, signR, COLOR_RED);
-  sprGauge.drawCircle(signX, signY, signR - 1, COLOR_RED);
-  sprGauge.drawCircle(signX, signY, signR - 2, COLOR_RED);
-
+  // 5. Đơn vị KM/H & Thanh Badge trang trí phong cách Cockpit
   sprGauge.setTextDatum(MC_DATUM);
-  sprGauge.setTextColor(0x0000, COLOR_WHITE);
-  sprGauge.drawString(String(limit), signX, signY, 4);
+  sprGauge.setTextColor(speed > limit ? COLOR_RED : COLOR_CYAN, COLOR_CARD_BG);
+  sprGauge.drawString("KM/H", gcx, gcy + 33, 2);
+
+  // Vạch ngang trang trí phân vùng
+  sprGauge.drawFastHLine(14, 134, 126, COLOR_CARD_BORDER);
+
+  // 6. KHỐI BIỂN BÁO SPEED LIMIT THỂ THAO CAO CẤP (TẬP TRUNG CHÍNH DIỆN)
+  int signCx = 77;
+  int signCy = 172;
+  int signR = 26; // Tăng nhẹ kích thước biển báo cho cân xứng và cực kỳ sắc nét
+
+  if (speed > limit) {
+    // Khi quá tốc độ: Biển phát hào quang cảnh báo đỏ - vàng
+    sprGauge.drawCircle(signCx, signCy, signR + 3, COLOR_ELECTRIC_YELLOW);
+    sprGauge.drawCircle(signCx, signCy, signR + 2, COLOR_RED);
+    sprGauge.fillCircle(signCx, signCy, signR, COLOR_WHITE);
+    sprGauge.drawCircle(signCx, signCy, signR, COLOR_RED);
+    sprGauge.drawCircle(signCx, signCy, signR - 1, COLOR_RED);
+    sprGauge.drawCircle(signCx, signCy, signR - 2, COLOR_RED);
+
+    sprGauge.setTextDatum(MC_DATUM);
+    sprGauge.setTextColor(0x0000, COLOR_WHITE);
+    sprGauge.drawString(String(limit), signCx, signCy, 4);
+  } else {
+    // Trạng thái chuẩn: Huy hiệu kim loại viền đỏ sang trọng, tối giản và sạch sẽ
+    sprGauge.drawCircle(signCx, signCy, signR + 2, COLOR_CARD_BORDER);
+    sprGauge.fillCircle(signCx, signCy, signR, COLOR_WHITE);
+    sprGauge.drawCircle(signCx, signCy, signR, COLOR_RED);
+    sprGauge.drawCircle(signCx, signCy, signR - 1, COLOR_RED);
+    sprGauge.drawCircle(signCx, signCy, signR - 2, COLOR_RED);
+
+    sprGauge.setTextDatum(MC_DATUM);
+    sprGauge.setTextColor(0x0000, COLOR_WHITE);
+    sprGauge.drawString(String(limit), signCx, signCy, 4);
+  }
 
   // Đẩy Sprite lên màn hình TFT (tại vị trí x=160, y=28)
   sprGauge.pushSprite(160, 28);
@@ -377,6 +507,9 @@ void setup() {
   tft.fillScreen(COLOR_BG);
 
   // Khởi tạo bộ đệm Sprite trong RAM
+  sprTopBar.setColorDepth(16);
+  sprTopBar.createSprite(320, TOP_BAR_H);
+
   sprNav.setColorDepth(16);
   sprNav.createSprite(148, 206);
 
@@ -384,7 +517,7 @@ void setup() {
   sprGauge.createSprite(154, 206);
 
   // Vẽ thanh Top Bar ban đầu
-  drawTopBar("09:45", true, true);
+  drawTopBar("09:45", true, 30.0);
 }
 
 // Cấu trúc mô phỏng kịch bản chạy thử nghiệm
@@ -417,14 +550,29 @@ DemoStep routeDemo[] = {
 };
 
 int totalSteps = sizeof(routeDemo) / sizeof(routeDemo[0]);
+unsigned long lastFrameTime = 0;
 
 void loop() {
   for (int i = 0; i < totalSteps; i++) {
     DemoStep step = routeDemo[i];
 
+    // Tính FPS thực tế giữa các khung hình
+    float fps = 30.0;
+    if (lastFrameTime > 0) {
+      unsigned long frameDelta = millis() - lastFrameTime;
+      if (frameDelta > 0) {
+        fps = 1000.0 / (float)frameDelta;
+      }
+    }
+    lastFrameTime = millis();
+
+    // Cập nhật TopBar với TeaNavi, BLE, RAM và FPS (đã lược bỏ GPS)
+    drawTopBar("09:45", true, fps);
+
     // Vẽ điều hướng
     updateNavDisplay(step.dir, step.distance, step.street, step.exitNum);
-    // Vẽ đồng hồ tốc độ
+
+    // Vẽ đồng hồ tốc độ và biển báo giới hạn thể thao
     updateSpeedGauge(step.speed, step.limit);
 
     delay(step.durationMs);
