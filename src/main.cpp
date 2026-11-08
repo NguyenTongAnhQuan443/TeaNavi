@@ -611,8 +611,8 @@ void updateSpeedGauge(int speed, int limit) {
   sprGauge.pushSprite(160, 28);
 }
 
-// Danh sách tên đường mô phỏng cho từng case
 String currentStreet = "DUONG GIAI PHONG";
+String currentTimeStr = "09:45";
 const char* defaultNavNames[] = {
   "DUONG GIAI PHONG",
   "NHANH LEN CAO TOC",
@@ -661,8 +661,8 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
 // ========================================================
 // BLE RX CALLBACK (NHẬN GÓI TIN DẪN ĐƯỜNG TỪ FLUTTER APP)
-// Định dạng gói tin: "DIR,DIST,SPEED,LIMIT,EXIT,STREET_NAME"
-// Ví dụ: "2,250,48,60,1,Le Loi"
+// Định dạng gói tin: "DIR,DIST,SPEED,LIMIT,EXIT,STREET_NAME,TIME"
+// Ví dụ: "2,250,48,60,1,LE LOI,09:45"
 // ========================================================
 class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
@@ -679,6 +679,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
           int idx3 = (idx2 != -1) ? msg.indexOf(',', idx2 + 1) : -1;
           int idx4 = (idx3 != -1) ? msg.indexOf(',', idx3 + 1) : -1;
           int idx5 = (idx4 != -1) ? msg.indexOf(',', idx4 + 1) : -1;
+          int idx6 = (idx5 != -1) ? msg.indexOf(',', idx5 + 1) : -1;
 
           // 1. Direction (0 - 11)
           currentNav = msg.substring(0, idx1).toInt();
@@ -689,13 +690,18 @@ class MyCallbacks: public BLECharacteristicCallbacks {
             // 3. Speed (km/h)
             if (idx3 != -1) {
               currentSpeed = msg.substring(idx2 + 1, idx3).toInt();
-              // 4. Speed Limit
+              // 4. Speed Limit (km/h)
               if (idx4 != -1) {
                 currentLimit = msg.substring(idx3 + 1, idx4).toInt();
                 // 5. Exit Number (cho bùng binh)
                 if (idx5 != -1) {
                   currentExit = msg.substring(idx4 + 1, idx5).toInt();
-                  currentStreet = msg.substring(idx5 + 1);
+                  if (idx6 != -1) {
+                    currentStreet = msg.substring(idx5 + 1, idx6);
+                    currentTimeStr = msg.substring(idx6 + 1);
+                  } else {
+                    currentStreet = msg.substring(idx5 + 1);
+                  }
                 } else {
                   currentStreet = msg.substring(idx4 + 1);
                 }
@@ -898,7 +904,7 @@ void loop() {
   }
 
   // Cập nhật TopBar (Brand, BLE, RAM, FPS)
-  drawTopBar("09:45", currentBle, fps);
+  drawTopBar(currentTimeStr, currentBle, fps);
 
   // Cập nhật cụm Điều hướng (Icon Vector, Khoảng cách, Tên đường thời gian thực từ BLE/Demo)
   updateNavDisplay((NavDirection)currentNav, currentDist, currentStreet.c_str(), currentExit);
